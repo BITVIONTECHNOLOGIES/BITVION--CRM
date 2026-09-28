@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
 import { useCrm } from "@/context/CrmContext";
-import { SOURCE_LABEL, STATUS_LABEL } from "@/data/catalog";
-import { downloadText, parseCsv, SAMPLE_CSV } from "@/lib/csv";
+import { SOURCE_LABEL, stageFromText } from "@/data/catalog";
+import { downloadText, parseCsv, readExcelPhone, SAMPLE_CSV } from "@/lib/csv";
 import { isValidPhone } from "@/lib/utils";
-import type { LeadInput, LeadSource, LeadStatus, Priority } from "@/types";
+import type { LeadInput, LeadSource, Priority } from "@/types";
 
 const FIELDS = [
   ["fullName", "Full name"],
@@ -15,7 +15,7 @@ const FIELDS = [
   ["whatsapp", "WhatsApp number"],
   ["position", "Position"],
   ["source", "Source"],
-  ["status", "Status"],
+  ["status", "Stage"],
   ["priority", "Priority"],
   ["location", "Location"],
   ["country", "Country"],
@@ -30,7 +30,11 @@ type FieldKey = (typeof FIELDS)[number][0];
 
 function guess(headers: string[], label: string) {
   const needle = label.toLowerCase();
-  const index = headers.findIndex((header) => header.trim().toLowerCase() === needle || header.trim().toLowerCase().includes(needle.split(" ")[0] ?? needle));
+  const aliases = needle === "stage" ? ["stage", "status"] : needle === "location" ? ["location", "place"] : needle === "position" ? ["position", "interest"] : [needle];
+  const index = headers.findIndex((header) => {
+    const text = header.trim().toLowerCase();
+    return aliases.some((alias) => text === alias || text.includes(alias.split(" ")[0] ?? alias));
+  });
   return index >= 0 ? String(index) : "";
 }
 
@@ -48,12 +52,12 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     return body.map((row, index) => {
       const value = (key: FieldKey) => row[Number(mapping[key] ?? -1)]?.trim() ?? "";
       const source = value("source").toLowerCase().replace(/[\s-]+/g, "_");
-      const status = value("status").toLowerCase().replace(/[\s-]+/g, "_");
       const priority = value("priority").toLowerCase();
+      const phone = readExcelPhone(value("phone"));
       const input: LeadInput = {
         fullName: value("fullName"),
-        phone: value("phone"),
-        whatsapp: value("whatsapp") || value("phone"),
+        phone,
+        whatsapp: readExcelPhone(value("whatsapp")) || phone,
         email: value("email"),
         gender: value("gender").toLowerCase() === "female" ? "female" : value("gender").toLowerCase() === "other" ? "other" : "male",
         age: Number(value("age") || 25),
@@ -65,7 +69,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         source: (source in SOURCE_LABEL ? source : "other") as LeadSource,
         priority: (["low", "medium", "high", "urgent"].includes(priority) ? priority : "medium") as Priority,
         assignedTo: actorId,
-        status: (status in STATUS_LABEL ? status : "new") as LeadStatus,
+        status: stageFromText(value("status")),
         notes: value("notes"),
         tags: [],
       };
@@ -98,7 +102,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Import leads</DialogTitle>
-          <DialogDescription>Upload a CSV export. Excel files should be saved as CSV in this demo.</DialogDescription>
+          <DialogDescription>Upload the Excel CSV export. Stage names such as Converted, Booked, Consultation, and Details Pending are read back into the same stage.</DialogDescription>
         </DialogHeader>
         <ol className="mb-4 flex gap-3 text-xs text-muted">
           {["Upload", "Column mapping", "Preview"].map((label, index) => (

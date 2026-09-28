@@ -21,7 +21,19 @@ export function downloadText(filename: string, content: string, type = "text/csv
 }
 
 export function downloadCsv(filename: string, rows: Array<Array<string | number | null | undefined>>) {
-  downloadText(filename, toCsv(rows));
+  downloadText(filename, `\uFEFF${toCsv(rows)}`);
+}
+
+export function excelPhone(phone: string) {
+  const text = phone.trim();
+  if (!text) return "";
+  return `="${text}"`;
+}
+
+export function readExcelPhone(value: string) {
+  const trimmed = value.trim();
+  const formula = trimmed.match(/^="([\s\S]*)"$/);
+  return (formula?.[1] ?? trimmed).replace(/^['\t]/, "");
 }
 
 export function parseCsv(text: string) {

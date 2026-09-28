@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 import { useCrm } from "@/context/CrmContext";
-import { SOURCE_LABEL } from "@/data/catalog";
+import { SOURCE_LABEL, STATUS_LABEL, STATUS_ORDER } from "@/data/catalog";
+import { exportLeadSheet } from "@/lib/lead-export";
 import { formatDateTime } from "@/lib/dates";
 import { dayFilterBounds, defaultDayFilter, inDayRange, yearsIn, type DayFilterValue } from "@/lib/day-filter";
 import { deskLeads, isAdmin } from "@/lib/scope";
 import { renderTemplate, userName } from "@/lib/template";
 import { firstName, formatTalk, greeting } from "@/lib/utils";
-import type { CallLog, Lead, User } from "@/types";
+import type { CallLog, Lead, LeadStatus, User } from "@/types";
 
 export function DashboardPage() {
   const { session } = useAuth();
@@ -59,6 +60,7 @@ function AdminHome({
         <p className="mt-1 max-w-2xl text-sm text-muted">Pick a day, a month, or a year. You see both desks: leads that arrived then, and who they are assigned to.</p>
       </header>
       <DayFilter value={filter} years={years} label={label} onChange={onFilter} />
+      <StageBoard leads={[...clinic, ...institute]} users={state.users} />
       <div className="grid gap-3 lg:grid-cols-2">
         <DeskSummary title="Clinic · Perumbavoor" detail="Leads created in this period, and how many already have a counsellor." leads={clinic} talk={talkFor(state.leads, calls, "clinic")} href="/leads" />
         <DeskSummary title="Institute · IAA Kochi" detail="Institute leads from the same period. WhatsApp stays manual on this desk." leads={institute} talk={talkFor(state.leads, calls, "institute")} href="/leads" />
@@ -147,6 +149,7 @@ function DeskHome({
           <p className="mt-1 text-sm text-muted">Tap the phone number to call. Open WhatsApp on a lead when you want to send one message yourself.</p>
         </Card>
       )}
+      <StageBoard leads={periodLeads} users={state.users} />
       <LeadBook title="Your leads" leads={periodLeads} users={state.users} />
     </div>
   );
@@ -230,6 +233,32 @@ function Leaderboard({ users, leads, calls }: { users: User[]; leads: Lead[]; ca
   );
 }
 
+function StageBoard({ leads, users }: { leads: Lead[]; users: User[] }) {
+  const counts = Object.fromEntries(STATUS_ORDER.map((status) => [status, 0])) as Record<LeadStatus, number>;
+  for (const lead of leads) counts[lead.status] += 1;
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Lead stages</h2>
+          <p className="text-sm text-muted">{leads.length.toLocaleString("en-IN")} leads in this period. Export writes each stage name, including Converted.</p>
+        </div>
+        <Button type="button" variant="secondary" disabled={leads.length === 0} onClick={() => exportLeadSheet(leads, users)}>
+          Export Excel
+        </Button>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {STATUS_ORDER.map((status) => (
+          <div key={status} className="rounded-md border border-line px-3 py-2">
+            <p className="text-[11px] text-muted">{STATUS_LABEL[status]}</p>
+            <p className="text-lg font-semibold tabular">{counts[status].toLocaleString("en-IN")}</p>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function LeadBook({ title, leads, users }: { title: string; leads: Lead[]; users: User[] }) {
   const shown = leads.slice(0, 20);
   return (
@@ -243,7 +272,7 @@ function LeadBook({ title, leads, users }: { title: string; leads: Lead[]; users
           <div className="hidden overflow-x-auto lg:block">
             <table className="w-full min-w-[760px] text-left text-[13px]">
               <thead className="border-b border-line text-xs text-muted">
-                <tr>{["Name", "Phone", "Place", "Source", "Status", "Assigned", "Created"].map((heading) => <th key={heading} className="px-3 py-2 font-medium">{heading}</th>)}</tr>
+                <tr>{["Name", "Phone", "Place", "Source", "Stage", "Assigned", "Created"].map((heading) => <th key={heading} className="px-3 py-2 font-medium">{heading}</th>)}</tr>
               </thead>
               <tbody>
                 {shown.map((lead) => (

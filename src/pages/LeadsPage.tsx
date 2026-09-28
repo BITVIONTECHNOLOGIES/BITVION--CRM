@@ -22,7 +22,7 @@ import { useCrm } from "@/context/CrmContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PRIORITY_LABEL, SOURCE_LABEL, STATUS_LABEL, STATUS_ORDER } from "@/data/catalog";
 import { FOLLOW_UP_LABEL } from "@/data/catalog";
-import { downloadCsv } from "@/lib/csv";
+import { exportLeadSheet } from "@/lib/lead-export";
 import { formatDate, formatDateTime, formatSmart, toDateTimeLocal, tomorrowAt10 } from "@/lib/dates";
 import { deskLeads } from "@/lib/scope";
 import { PhoneLink } from "@/components/shared/PhoneLink";
@@ -84,10 +84,7 @@ export function LeadsPage() {
   const allVisibleSelected = visible.length > 0 && visible.every((lead) => selected.includes(lead.id));
 
   const exportRows = (leads: Lead[]) => {
-    downloadCsv("recruitflow-leads.csv", [
-      ["Name", "Phone", "Email", "Position", "Source", "Status", "Priority", "Assigned", "Location", "Created"],
-      ...leads.map((lead) => [lead.fullName, lead.phone, lead.email, lead.position, SOURCE_LABEL[lead.source], STATUS_LABEL[lead.status], lead.priority, userName(state.users, lead.assignedTo), lead.location, lead.createdAt.slice(0, 10)]),
-    ]);
+    exportLeadSheet(leads, state.users);
   };
 
   return (

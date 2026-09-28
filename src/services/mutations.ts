@@ -681,28 +681,67 @@ export function finishCampaign(state: CrmState, id: string, actorId: string, del
 }
 
 export function importLeads(state: CrmState, inputs: LeadInput[], actorId: string) {
-  let next = state;
+  const phones = new Set<string>();
+  const emails = new Set<string>();
+  for (const lead of state.leads) {
+    const phone = digits(lead.phone);
+    const whatsapp = digits(lead.whatsapp);
+    if (phone) phones.add(phone);
+    if (whatsapp) phones.add(whatsapp);
+    const email = lead.email.trim().toLowerCase();
+    if (email) emails.add(email);
+  }
+
+  const now = new Date().toISOString();
   const created: Lead[] = [];
   const duplicates: string[] = [];
-  inputs.forEach((input) => {
-    const result = addLead(next, input, actorId);
-    next = result.state;
-    if (result.result) created.push(result.result);
-    else duplicates.push(input.fullName);
-  });
-  if (created.length) {
-    next = withActivity(
-      next,
-      activity({
-        userId: actorId,
-        leadId: null,
-        leadName: null,
-        type: "imported",
-        action: "Leads imported",
-        details: `Imported ${created.length} leads from CSV.`,
-      }),
-    );
+  for (const input of inputs) {
+    const phone = digits(input.phone);
+    const whatsapp = digits(input.whatsapp);
+    const email = input.email.trim().toLowerCase();
+    if ((phone && phones.has(phone)) || (whatsapp && phones.has(whatsapp)) || (email && emails.has(email))) {
+      duplicates.push(input.fullName);
+      continue;
+    }
+    if (phone) phones.add(phone);
+    if (whatsapp) phones.add(whatsapp);
+    if (email) emails.add(email);
+    const businessUnit = input.businessUnit ?? (input.jobCategory === "Institute" ? "institute" : "clinic");
+    created.push({
+      ...input,
+      businessUnit,
+      metaCampaignId: input.metaCampaignId ?? "",
+      metaCampaignName: input.metaCampaignName ?? "",
+      whatsappAutomation: businessUnit === "clinic",
+      callCount: 0,
+      talkSeconds: 0,
+      id: uid("ld"),
+      fullName: input.fullName.trim(),
+      email: input.email.trim(),
+      documents: blankDocuments(uid("doc")),
+      noteEntries: input.notes.trim()
+        ? [{ id: uid("note"), body: input.notes.trim(), userId: actorId, createdAt: now }]
+        : [],
+      createdAt: now,
+      updatedAt: now,
+      lastContactAt: null,
+      nextFollowUpAt: null,
+      convertedAt: input.status === "converted" ? now : null,
+    });
   }
+
+  if (!created.length) return { state, created, duplicates };
+  const next = withActivity(
+    { ...state, leads: [...created, ...state.leads] },
+    activity({
+      userId: actorId,
+      leadId: null,
+      leadName: null,
+      type: "imported",
+      action: "Leads imported",
+      details: `Imported ${created.length} leads. Stages were kept, including Converted.`,
+    }),
+  );
   return { state: next, created, duplicates };
 }
 

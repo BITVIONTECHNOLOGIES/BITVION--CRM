@@ -159,6 +159,27 @@ export const STATUS_LABEL: Record<LeadStatus, string> = {
   lost: "Lost",
 };
 
+const STAGE_ALIASES: Record<string, LeadStatus> = {
+  details_pending: "documents_pending",
+  detail_pending: "documents_pending",
+  in_progress: "processing",
+  consultation: "interview",
+  booked: "selected",
+  won: "converted",
+  closed_won: "converted",
+  converted: "converted",
+};
+
+export function stageFromText(value: string): LeadStatus {
+  const raw = value.trim().toLowerCase();
+  if (!raw) return "new";
+  const compact = raw.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  if (compact in STATUS_LABEL) return compact as LeadStatus;
+  if (compact in STAGE_ALIASES) return STAGE_ALIASES[compact];
+  const labeled = (Object.entries(STATUS_LABEL) as Array<[LeadStatus, string]>).find(([, label]) => label.toLowerCase() === raw);
+  return labeled?.[0] ?? "new";
+}
+
 export const STATUS_CLASS: Record<LeadStatus, string> = {
   new: "bg-slate-100 text-slate-700",
   contacted: "bg-blue-50 text-blue-800",
